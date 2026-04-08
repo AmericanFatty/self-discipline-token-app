@@ -1,0 +1,20 @@
+{
+  "name": "自律代币局",
+  "short_name": "代币局",
+  "description": "每日打卡 + 代币激励 + 普通盲盒保底 + 周盲盒倍率 + 商店兑换",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#fdf6e4",
+  "background_color": "#fef8ea",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

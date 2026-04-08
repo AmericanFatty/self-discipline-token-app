@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#fdf6e4" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="自律代币局" />
+    <title>自律代币局</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/icon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+    <script defer src="./app.js"></script>
+  </head>
+  <body>
+    <div class="grain-bg" aria-hidden="true"></div>
+    <div class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Self Discipline System</p>
+          <h1>自律代币局</h1>
+        </div>
+        <div class="coin-chip" id="coinChip">0 代币</div>
+      </header>
+
+      <section class="overview grid-2">
+        <article class="card stat-card">
+          <p class="label">今日总进度</p>
+          <p class="value" id="todayProgressText">0 / 7</p>
+          <div class="progress-track" aria-hidden="true">
+            <div class="progress-fill" id="todayProgressFill"></div>
+          </div>
+          <p class="hint" id="todayRewardHint">完成打卡即可获得代币</p>
+        </article>
+
+        <article class="card stat-card">
+          <p class="label">当前周加成</p>
+          <p class="value" id="activeBoostText">无</p>
+          <p class="hint" id="activeBoostHint">开周盲盒可获得下周收益倍率</p>
+        </article>
+      </section>
+
+      <nav class="tabbar" aria-label="主导航">
+        <button class="tab-btn active" data-tab="checkin">每日打卡</button>
+        <button class="tab-btn" data-tab="blindbox">盲盒系统</button>
+        <button class="tab-btn" data-tab="shop">代币商店</button>
+        <button class="tab-btn" data-tab="history">记录中心</button>
+      </nav>
+
+      <main class="panels">
+        <section class="tab-panel active" id="panel-checkin">
+          <div class="panel-head">
+            <h2>每日打卡</h2>
+            <label class="date-picker">
+              <span>日期</span>
+              <input type="date" id="checkinDate" />
+            </label>
+          </div>
+          <div class="task-grid" id="taskGrid"></div>
+        </section>
+
+        <section class="tab-panel" id="panel-blindbox">
+          <div class="two-col">
+            <article class="card box-card">
+              <div class="panel-head">
+                <h2>普通盲盒</h2>
+                <p class="sub">每次消耗 200 代币</p>
+              </div>
+
+              <div class="counter-grid">
+                <div>
+                  <p class="label">紫盒计数器</p>
+                  <p class="value" id="purpleCounter">0</p>
+                </div>
+                <div>
+                  <p class="label">金盒计数器</p>
+                  <p class="value" id="goldCounter">0</p>
+                </div>
+              </div>
+
+              <div class="prob-list" id="normalProbList"></div>
+
+              <button class="primary-btn" data-action="open-normal-box">开启普通盲盒</button>
+              <div class="result-banner" id="normalResult">等待开奖</div>
+            </article>
+
+            <article class="card box-card">
+              <div class="panel-head">
+                <h2>每周盲盒</h2>
+                <p class="sub">整周 7 天全项目完成后可开</p>
+              </div>
+
+              <div id="weeklyStatus" class="status-block"></div>
+              <button class="primary-btn" data-action="open-weekly-box">开启周盲盒</button>
+
+              <div class="boost-list-wrap">
+                <p class="label">已排程的周收益加成</p>
+                <ul id="boostList" class="boost-list"></ul>
+              </div>
+
+              <div class="result-banner" id="weeklyResult">等待开奖</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-shop">
+          <div class="panel-head">
+            <h2>代币商店</h2>
+            <p class="sub">代币可兑换你想要的奖励</p>
+          </div>
+          <div id="shopContainer" class="shop-grid"></div>
+        </section>
+
+        <section class="tab-panel" id="panel-history">
+          <div class="panel-head">
+            <h2>记录中心</h2>
+            <div class="actions-inline">
+              <button class="ghost-btn" data-action="export-data">导出数据</button>
+              <label class="ghost-btn upload-btn">
+                导入数据
+                <input id="importInput" type="file" accept="application/json" />
+              </label>
+              <button class="danger-btn" data-action="reset-data">重置数据</button>
+            </div>
+          </div>
+          <div class="history-list" id="historyList"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
