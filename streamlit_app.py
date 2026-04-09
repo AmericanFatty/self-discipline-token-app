@@ -7,6 +7,11 @@ from typing import Any
 import streamlit as st
 
 try:
+    from supabase import create_client
+except Exception:
+    create_client = None
+
+try:
     from zoneinfo import ZoneInfo
 
     APP_TZ = ZoneInfo("Asia/Shanghai")
@@ -119,6 +124,8 @@ SHOP_ITEM_MAP = {
 
 DATA_DIR = Path("data")
 DATA_FILE = DATA_DIR / "state.json"
+SUPABASE_DEFAULT_TABLE = "discipline_state"
+SUPABASE_DEFAULT_ROW_ID = "default"
 
 
 def now_dt() -> datetime:
@@ -251,7 +258,47 @@ def migrate_state(raw: Any) -> dict[str, Any]:
     return state
 
 
-def load_state() -> dict[str, Any]:
+def get_secret(name: str, default: Any = None) -> Any:
+    try:
+        return st.secrets.get(name, default)
+    except Exception:
+        return default
+
+
+def get_storage_backend() -> str:
+    has_supabase_package = create_client is not None
+    has_supabase_url = bool(get_secret("SUPABASE_URL"))
+    has_supabase_key = bool(get_secret("SUPABASE_SERVICE_ROLE_KEY") or get_secret("SUPABASE_KEY"))
+    if has_supabase_package and has_supabase_url and has_supabase_key:
+        return "supabase"
+    return "local"
+
+
+def get_supabase_table() -> str:
+    return str(get_secret("SUPABASE_TABLE", SUPABASE_DEFAULT_TABLE))
+
+
+def get_supabase_state_id() -> str:
+    return str(get_secret("APP_STATE_ID", SUPABASE_DEFAULT_ROW_ID))
+
+
+@st.cache_resource(show_spinner=False)
+def get_supabase_client() -> Any | None:
+    if create_client is None:
+        return None
+
+    supabase_url = get_secret("SUPABASE_URL")
+    supabase_key = get_secret("SUPABASE_SERVICE_ROLE_KEY") or get_secret("SUPABASE_KEY")
+    if not supabase_url or not supabase_key:
+        return None
+
+    try:
+        return create_client(supabase_url, supabase_key)
+    except Exception:
+        return None
+
+
+def load_state_local() -> dict[str, Any]:
     if not DATA_FILE.exists():
         return default_state()
 
@@ -263,9 +310,83 @@ def load_state() -> dict[str, Any]:
     return migrate_state(raw)
 
 
-def save_state(state: dict[str, Any]) -> None:
+def save_state_local(state: dict[str, Any]) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     DATA_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def load_state_supabase() -> tuple[dict[str, Any] | None, str | None]:
+    client = get_supabase_client()
+    if client is None:
+        return None, "Supabase 客户端未初始化"
+
+    try:
+        response = (
+            client.table(get_supabase_table())
+            .select("state")
+            .eq("id", get_supabase_state_id())
+            .limit(1)
+            .execute()
+        )
+        rows = response.data or []
+        if not rows:
+            return default_state(), None
+
+        raw_state = rows[0].get("state")
+        if isinstance(raw_state, str):
+            raw_state = json.loads(raw_state)
+        if not isinstance(raw_state, dict):
+            return default_state(), None
+
+        return migrate_state(raw_state), None
+    except Exception as exc:
+        return None, str(exc)
+
+
+def save_state_supabase(state: dict[str, Any]) -> tuple[bool, str | None]:
+    client = get_supabase_client()
+    if client is None:
+        return False, "Supabase 客户端未初始化"
+
+    try:
+        payload = {
+            "id": get_supabase_state_id(),
+            "state": state,
+            "updated_at": now_iso(),
+        }
+        client.table(get_supabase_table()).upsert(payload, on_conflict="id").execute()
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+
+
+def load_state() -> dict[str, Any]:
+    backend = get_storage_backend()
+    st.session_state["storage_backend"] = backend
+    st.session_state["storage_warning"] = None
+
+    if backend == "supabase":
+        loaded, error = load_state_supabase()
+        if loaded is not None:
+            return loaded
+
+        st.session_state["storage_warning"] = f"Supabase 读取失败，已回退本地存储：{error}"
+        st.session_state["storage_backend"] = "local"
+
+    return load_state_local()
+
+
+def save_state(state: dict[str, Any]) -> None:
+    backend = st.session_state.get("storage_backend", get_storage_backend())
+
+    if backend == "supabase":
+        ok, error = save_state_supabase(state)
+        if ok:
+            return
+
+        st.session_state["storage_warning"] = f"Supabase 写入失败，已临时写入本地存储：{error}"
+
+    save_state_local(state)
 
 
 def push_history(state: dict[str, Any], title: str, delta: int, date_key: str, event_type: str, extra: dict[str, Any] | None = None) -> None:
@@ -718,6 +839,15 @@ show_flash()
 
 st.markdown("## 自律代币局 · Streamlit 版")
 st.caption("每日打卡 / 盲盒保底 / 周收益倍率 / 商店兑换")
+storage_backend = st.session_state.get("storage_backend", "local")
+if storage_backend == "supabase":
+    st.caption("当前存储：Supabase 云端持久化")
+else:
+    st.caption("当前存储：本地文件（Streamlit Cloud 重启后可能丢失）")
+
+storage_warning = st.session_state.get("storage_warning")
+if storage_warning:
+    st.warning(storage_warning)
 
 current_today = today_key()
 current_boost = get_boost_for_date(state, current_today)
@@ -885,6 +1015,21 @@ with shop_tab:
 
 with history_tab:
     st.subheader("记录与数据")
+
+    with st.expander("云端持久化配置（Supabase）", expanded=False):
+        st.markdown(
+            """
+1. 在 Supabase 新建表（建议名字：`discipline_state`）并包含字段：
+   - `id` (text, primary key)
+   - `state` (jsonb, not null)
+   - `updated_at` (timestamptz)
+2. 在 Streamlit Cloud 的 `Settings -> Secrets` 中设置：
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`（或 `SUPABASE_KEY`）
+   - 可选：`SUPABASE_TABLE`（默认 `discipline_state`）
+   - 可选：`APP_STATE_ID`（默认 `default`）
+            """
+        )
 
     data_cols = st.columns([1, 1, 2])
     export_payload = json.dumps(state, ensure_ascii=False, indent=2)

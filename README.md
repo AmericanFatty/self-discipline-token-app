@@ -36,9 +36,32 @@ streamlit run streamlit_app.py
 
 ### 数据说明（Streamlit Cloud）
 
-- 数据默认保存到项目目录 `data/state.json`。
-- Streamlit Cloud 的文件系统不是永久数据库，重启或重建后可能丢失本地文件。
-- 建议你定期使用应用内“导出数据”做备份。
+- 已支持 **Supabase 持久化**（推荐）。
+- 若未配置 Supabase，会回退到本地 `data/state.json`。
+- Streamlit Cloud 的本地文件系统非永久，容器重建后可能丢失。
+
+### 配置 Supabase（推荐）
+
+1. 在 Supabase 执行建表 SQL：
+
+```sql
+create table if not exists discipline_state (
+  id text primary key,
+  state jsonb not null,
+  updated_at timestamptz default now()
+);
+```
+
+2. 在 Streamlit Cloud -> `Settings -> Secrets` 填写：
+
+```toml
+SUPABASE_URL="https://xxxx.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+SUPABASE_TABLE="discipline_state" # 可选，默认就是这个
+APP_STATE_ID="default"            # 可选，用于区分不同用户数据
+```
+
+3. 重新部署后，应用会自动切到 Supabase 云端持久化。
 
 ## iPhone 安装为“App”
 
